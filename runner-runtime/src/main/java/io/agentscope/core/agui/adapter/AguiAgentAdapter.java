@@ -254,35 +254,61 @@ public class AguiAgentAdapter {
                     }
                 }
             }
-        } else if (type == EventType.TOOL_RESULT && event.isLast()) {
-            // Handle tool results
-            for (ContentBlock block : msg.getContent()) {
-                if (block instanceof ToolResultBlock toolResult) {
-                    String toolCallId = toolResult.getId();
-                    String result = extractToolResultText(toolResult);
+        } else if (type == EventType.TOOL_RESULT) {
+            if (event.isLast()) {
+                // Handle tool results
+                for (ContentBlock block : msg.getContent()) {
+                    if (block instanceof ToolResultBlock toolResult) {
+                        String toolCallId = toolResult.getId();
+                        String result = extractToolResultText(toolResult);
 
-                    boolean hasStarted = state.hasStartedToolCall(toolCallId);
-                    if (!hasStarted) {
+                        boolean hasStarted = state.hasStartedToolCall(toolCallId);
+                        if (!hasStarted) {
+                            events.add(
+                                    new AguiEvent.ToolCallStart(
+                                            state.threadId, state.runId, toolCallId, "unknown"));
+                            state.startToolCall(toolCallId);
+                        }
+
+                        // Ensure ToolCallEnd is emitted to close arguments phase
+                        events.add(new AguiEvent.ToolCallEnd(state.threadId, state.runId, toolCallId));
+
                         events.add(
-                                new AguiEvent.ToolCallStart(
-                                        state.threadId, state.runId, toolCallId, "unknown"));
-                        state.startToolCall(toolCallId);
+                                new AguiEvent.ToolCallResult(
+                                        state.threadId,
+                                        state.runId,
+                                        toolCallId,
+                                        result,
+                                        "tool",
+                                        msg.getId()));
+                        state.endToolCall(toolCallId);
                     }
-
-                    // Ensure ToolCallEnd is emitted to close arguments phase
-                    events.add(new AguiEvent.ToolCallEnd(state.threadId, state.runId, toolCallId));
-
-                    events.add(
-                            new AguiEvent.ToolCallResult(
-                                    state.threadId,
-                                    state.runId,
-                                    toolCallId,
-                                    result,
-                                    "tool",
-                                    msg.getId()));
-                    state.endToolCall(toolCallId);
                 }
             }
+            /**
+             * 【子Agent流式事件发送】
+             * 此处可以实现子Agent流式事件包装成AguiEvent并发送，但是目前前端适配效果不好。
+             * 此处若想可用，需要对AguiEvent事件进行扩展，同时前端要实现合理的子Agent交互效果，并且支持多个子Agent并行运行。
+             * TODO: 待前端适配完善后再启用
+             */
+//            else {
+//                for (ContentBlock block : msg.getContent()) {
+//                    if (block instanceof ToolResultBlock toolResult) {
+//                        Object o = toolResult.getMetadata().get("subagent_id");
+//                        if (o != null) {
+//                            List<ContentBlock> output = toolResult.getOutput();
+//                            for (ContentBlock contentBlock : output) {
+//                                if (contentBlock instanceof TextBlock textBlock){
+//                                    String text = textBlock.getText();
+//                                    Event subEvent = JsonUtils.getJsonCodec().fromJson(text, Event.class);
+//                                    events.addAll(convertEvent(subEvent, state));
+//                                }
+//                            }
+//                        }
+//                    }
+//                }
+//            }
+
         }
 
         return events;

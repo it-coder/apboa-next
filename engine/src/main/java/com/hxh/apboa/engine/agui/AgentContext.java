@@ -60,6 +60,10 @@ public class AgentContext {
 
         agentContext.setParams(toMap(input.getForwardedProp("params")));
 
+        init(agentContext);
+    }
+
+    public static void init(AgentContext agentContext) {
         CONTEXT_HOLDER.set(agentContext);
     }
 
