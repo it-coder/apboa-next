@@ -31,12 +31,20 @@ jobs:
           DOCKER_REGISTRY: ""
           # 如果不想构建时拉取基础镜像，可以设置
           BUILDKIT_PROGRESS: plain
+      # 4. 在导出步骤中添加
+      - name: 拉取并导出中间件镜像
+        run: |
+          # 拉取中间件镜像
+          docker pull mysql:8.0
+          docker pull redis:7-alpine
+          docker pull pgvector/pgvector:pg16
+      
 
-      # 4. 查看构建好的镜像列表（调试用）
+      # 5. 查看构建好的镜像列表（调试用）
       - name: 查看镜像列表
         run: docker images
 
-      # 5. 将构建的镜像导出为 tar 文件
+      # 6. 将构建的镜像导出为 tar 文件
       - name: 导出镜像为 tar 包
         run: |
           # 创建输出目录
@@ -48,11 +56,11 @@ jobs:
           # 但我们用 docker compose build 构建后，可以用服务名:latest 引用
           
           # 导出所有构建的服务镜像
-          docker save -o ./image_artifacts/apboa-console.tar apboa-console:latest
-          docker save -o ./image_artifacts/apboa-runtime.tar apboa-runtime:latest
-          docker save -o ./image_artifacts/apboa-proxy.tar apboa-proxy:latest
-          docker save -o ./image_artifacts/apboa-websocket.tar apboa-websocket:latest
-          docker save -o ./image_artifacts/apboa-frontend.tar apboa-frontend:latest
+          docker save -o ./image_artifacts/apboa-console.tar docker-apboa-console:latest
+          docker save -o ./image_artifacts/apboa-runtime.tar docker-apboa-runtime:latest
+          docker save -o ./image_artifacts/apboa-proxy.tar docker-apboa-proxy:latest
+          docker save -o ./image_artifacts/apboa-websocket.tar docker-apboa-websocket:latest
+          docker save -o ./image_artifacts/apboa-frontend.tar docker-apboa-frontend:latest
           
           # 可选：也导出中间件镜像（方便离线环境）
           docker save -o ./image_artifacts/mysql8.tar mysql:8.0
@@ -65,7 +73,7 @@ jobs:
           # 查看文件大小
           ls -lh apboa-images.tar.gz
 
-      # 6. 上传到 GitHub Actions Artifacts
+      # 7. 上传到 GitHub Actions Artifacts
       - name: 上传镜像压缩包
         uses: actions/upload-artifact@v4
         with:
