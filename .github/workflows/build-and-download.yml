@@ -2,9 +2,9 @@ name: 构建镜像并下载
 
 on:
   push:
-    branches: [ "master", "develop" ]  # 触发分支
+    branches: [ "develop" ]  # 触发分支
   pull_request:
-    branches: [ "master" ]
+    branches: [ "develop" ]
   workflow_dispatch:                 # 支持手动触发
 
 jobs:
