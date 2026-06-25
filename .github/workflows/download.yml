@@ -23,7 +23,7 @@ jobs:
       - name: 查看镜像列表
         run: docker images
 
-      # 6. 将构建的镜像导出为 tar 文件
+      # 3. 将构建的镜像导出为 tar 文件
       - name: 导出镜像为 tar 包
         run: |
           # 创建输出目录
@@ -39,7 +39,7 @@ jobs:
           # 查看文件大小
           ls -lh images.tar.gz
 
-      # 7. 上传到 GitHub Actions Artifacts
+      # 4. 上传到 GitHub Actions Artifacts
       - name: 上传镜像压缩包
         uses: actions/upload-artifact@v4
         with:
