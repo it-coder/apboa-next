@@ -1,1 +1,48 @@
+name: 构建镜像并下载
 
+on:
+  push:
+    branches: [ "develop" ]  # 触发分支
+  pull_request:
+    branches: [ "develop" ]
+  workflow_dispatch:                 # 支持手动触发
+
+jobs:
+  build-images:
+    runs-on: ubuntu-latest
+    
+    steps:
+      # 1. 拉取镜像
+      - name: 拉取并导出中间件镜像
+        run: |
+          # 拉取中间件镜像
+          docker pull maven:3.9-eclipse-temurin-21
+          docker pull eclipse-temurin:21-jre      
+
+      # 2. 查看镜像列表
+      - name: 查看镜像列表
+        run: docker images
+
+      # 6. 将构建的镜像导出为 tar 文件
+      - name: 导出镜像为 tar 包
+        run: |
+          # 创建输出目录
+          mkdir -p ./image_artifacts
+          
+          # 可选：也导出中间件镜像（方便离线环境）
+          docker save -o ./image_artifacts/maven39.tar maven:3.9-eclipse-temurin-21
+          docker save -o ./image_artifacts/eclipse-temurin.tar eclipse-temurin:21-jre
+          
+          # 打包成一个压缩文件
+          tar -czf images.tar.gz -C ./image_artifacts .
+          
+          # 查看文件大小
+          ls -lh images.tar.gz
+
+      # 7. 上传到 GitHub Actions Artifacts
+      - name: 上传镜像压缩包
+        uses: actions/upload-artifact@v4
+        with:
+          name: images
+          path: images.tar.gz
+          retention-days: 7   # 保留 7 天，可自行调整
