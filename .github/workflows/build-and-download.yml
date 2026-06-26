@@ -1,4 +1,4 @@
-name: 构建镜像并下载
+name: next-build
 
 on:
   push:
