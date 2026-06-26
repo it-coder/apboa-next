@@ -2,7 +2,7 @@ name: Sync and Push Image to Aliyun ACR
 
 on:
   workflow_dispatch:  # 通过 GitHub 界面手动触发，方便测试
-  inputs:
+    inputs:
       image_list:
         description: '需要同步的镜像列表（每行一个）'
         required: true
@@ -27,22 +27,104 @@ jobs:
       # 2. 拉取源镜像并推送到 ACR
       - name: Pull and Push Image
         run: |
-          # 定义源镜像地址，例如：nginx:latest 或 mysql:8.0
-          SOURCE_IMAGE="eclipse-temurin:21-jre"
+          # 从用户输入读取，去除空行和首尾空格
+          echo "${{ github.event.inputs.image_list }}" | grep -v '^[[:space:]]*$' > /tmp/images.txt
           
-          # 定义目标镜像地址
-          TARGET_IMAGE="${{ secrets.ALIYUN_REGISTRY }}/lih_hub/$SOURCE_IMAGE"
+          # ============================================================
+          # 开始同步
+          # ============================================================
+          echo "========================================="
+          echo "准备同步以下镜像："
+          cat /tmp/images.txt
+          echo "========================================="
           
-          # 从 Docker Hub 或其他源拉取镜像
-          echo "Pulling source image: $SOURCE_IMAGE"
-          docker pull $SOURCE_IMAGE
+          # 统计
+          TOTAL=$(cat /tmp/images.txt | wc -l)
+          SUCCESS=0
+          FAIL=0
+          FAILED_IMAGES=""
           
-          # 为镜像打上 ACR 的标签
-          echo "Tagging as: $TARGET_IMAGE"
-          docker tag $SOURCE_IMAGE $TARGET_IMAGE
+          # 逐行读取并处理
+          while IFS= read -r SOURCE_IMAGE; do
+            # 跳过空行
+            if [ -z "$SOURCE_IMAGE" ]; then
+              continue
+            fi
+            
+            echo ""
+            echo "========================================="
+            echo "正在处理: $SOURCE_IMAGE"
+            echo "========================================="
+            
+            # 提取镜像名和标签（去除 Registry 前缀）
+            # 例如: registry.cn-hangzhou.aliyuncs.com/namespace/app:v1 → namespace/app:v1
+            # 例如: pgvector/pgvector:pg16 → pgvector/pgvector:pg16
+            # 例如: nginx:latest → nginx:latest
+            
+            # 去掉协议头（如果有）
+            SOURCE_CLEAN=$(echo "$SOURCE_IMAGE" | sed 's|^https\?://||')
+            
+            # 提取 registry 之后的部分
+            # 如果包含 '/'，判断第一个 '/' 之前是否是 registry（包含 '.' 或 ':'）
+            FIRST_PART=$(echo "$SOURCE_CLEAN" | cut -d/ -f1)
+            if echo "$FIRST_PART" | grep -qE '[.:]'; then
+              # 有 registry 前缀，去掉它
+              IMAGE_NAME_WITH_TAG=$(echo "$SOURCE_CLEAN" | cut -d/ -f2-)
+            else
+              # 没有 registry 前缀，直接使用
+              IMAGE_NAME_WITH_TAG="$SOURCE_CLEAN"
+            fi
+            
+            # 构建目标镜像地址
+            TARGET_IMAGE="${{ secrets.ALIYUN_REGISTRY }}/$IMAGE_NAME_WITH_TAG"
+            
+            echo "源镜像:   $SOURCE_IMAGE"
+            echo "目标镜像: $TARGET_IMAGE"
+            
+            # 拉取源镜像
+            echo "拉取源镜像..."
+            if ! docker pull "$SOURCE_IMAGE"; then
+              echo "❌ 拉取失败: $SOURCE_IMAGE"
+              FAIL=$((FAIL + 1))
+              FAILED_IMAGES="$FAILED_IMAGES\n  $SOURCE_IMAGE"
+              continue
+            fi
+            
+            # 打标签
+            echo "打标签..."
+            docker tag "$SOURCE_IMAGE" "$TARGET_IMAGE"
+            
+            # 推送
+            echo "推送到 ACR..."
+            if docker push "$TARGET_IMAGE"; then
+              echo "✅ 推送成功: $TARGET_IMAGE"
+              SUCCESS=$((SUCCESS + 1))
+            else
+              echo "❌ 推送失败: $TARGET_IMAGE"
+              FAIL=$((FAIL + 1))
+              FAILED_IMAGES="$FAILED_IMAGES\n  $SOURCE_IMAGE"
+            fi
+            
+          done < /tmp/images.txt
           
-          # 推送到阿里云 ACR
-          echo "Pushing to Aliyun ACR..."
-          docker push $TARGET_IMAGE
+          # ============================================================
+          # 输出汇总
+          # ============================================================
+          echo ""
+          echo "========================================="
+          echo "同步完成！"
+          echo "========================================="
+          echo "总计: $TOTAL 个镜像"
+          echo "成功: $SUCCESS"
+          echo "失败: $FAIL"
+          
+          if [ $FAIL -gt 0 ]; then
+            echo ""
+            echo "失败的镜像："
+            echo -e "$FAILED_IMAGES"
+            exit 1
+          else
+            echo "🎉 所有镜像同步成功！"
+          fi
           
           echo "Sync completed successfully!"
