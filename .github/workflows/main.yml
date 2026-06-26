@@ -21,7 +21,7 @@ jobs:
       - name: Pull and Push Image
         run: |
           # 定义源镜像地址，例如：nginx:latest 或 mysql:8.0
-          SOURCE_IMAGE="maven:3.9-eclipse-temurin-21"
+          SOURCE_IMAGE="eclipse-temurin:21-jre"
           
           # 定义目标镜像地址
           TARGET_IMAGE="${{ secrets.ALIYUN_REGISTRY }}/lih_hub/$SOURCE_IMAGE"
