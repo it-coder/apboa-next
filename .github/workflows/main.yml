@@ -76,7 +76,7 @@ jobs:
             fi
             
             # 构建目标镜像地址
-            TARGET_IMAGE="${{ secrets.ALIYUN_REGISTRY }}/$IMAGE_NAME_WITH_TAG"
+            TARGET_IMAGE="${{ secrets.ALIYUN_REGISTRY }}/lih_hub/$IMAGE_NAME_WITH_TAG"
             
             echo "源镜像:   $SOURCE_IMAGE"
             echo "目标镜像: $TARGET_IMAGE"
