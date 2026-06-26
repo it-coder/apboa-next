@@ -2,6 +2,13 @@ name: Sync and Push Image to Aliyun ACR
 
 on:
   workflow_dispatch:  # 通过 GitHub 界面手动触发，方便测试
+  inputs:
+      image_list:
+        description: '需要同步的镜像列表（每行一个）'
+        required: true
+        default: |
+          pgvector/pgvector:pg16
+          
   # push:
   #   branches: [ "main" ] # 也可以配置为在 main 分支推送时自动触发
 
