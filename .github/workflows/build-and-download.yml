@@ -56,11 +56,11 @@ jobs:
           # 但我们用 docker compose build 构建后，可以用服务名:latest 引用
           
           # 导出所有构建的服务镜像
-          docker save -o ./image_artifacts/apboa-console.tar docker-apboa-console:latest
-          docker save -o ./image_artifacts/apboa-runtime.tar docker-apboa-runtime:latest
-          docker save -o ./image_artifacts/apboa-proxy.tar docker-apboa-proxy:latest
-          docker save -o ./image_artifacts/apboa-websocket.tar docker-apboa-websocket:latest
-          docker save -o ./image_artifacts/apboa-frontend.tar docker-apboa-frontend:latest
+          docker save -o ./image_artifacts/apboa-console.tar apboa-console:latest
+          docker save -o ./image_artifacts/apboa-runtime.tar apboa-runtime:latest
+          docker save -o ./image_artifacts/apboa-proxy.tar apboa-proxy:latest
+          docker save -o ./image_artifacts/apboa-websocket.tar apboa-websocket:latest
+          docker save -o ./image_artifacts/apboa-frontend.tar apboa-frontend:latest
           
           # 可选：也导出中间件镜像（方便离线环境）
           docker save -o ./image_artifacts/mysql8.tar mysql:8.0
