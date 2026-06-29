@@ -33,7 +33,7 @@ export default defineConfig(({ mode }) => {
 
   // 根据构建目标设置输出目录和基础路径
   const outDir = target === 'doc' ? 'dist-doc' : (target === 'main' ? 'dist-main' : 'dist')
-  const contextPath = env.VITE_APP_CONTEXT_PATH || ''
+  const contextPath = env.VITE_APP_CONTEXT_PATH || '/web'
   const base = target === 'doc' ? `${contextPath}/doc/` : (contextPath ? `${contextPath}/` : '/')
 
   return {
