@@ -1,0 +1,82 @@
+name: build-single
+
+on:
+  push:
+    branches: [ "develop" ]  # 触发分支
+  pull_request:
+    branches: [ "develop" ]
+  workflow_dispatch:                 # 支持手动触发
+
+jobs:
+  build-images:
+    runs-on: ubuntu-latest
+    
+    steps:
+      # 1. 迁出代码
+      - name: 迁出代码
+        uses: actions/checkout@v4
+
+      # 2. 设置 Docker Buildx（增强构建能力）
+      - name: 设置 Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # 3. 构建所有镜像（使用 docker compose）
+      - name: 构建所有服务镜像
+        run: |
+          # 使用 -f 指定 compose 文件
+          # 构建所有 build 中定义的服务
+          docker compose -f docker/docker-compose-simple.yml build
+        env:
+          # 如果 DOCKER_REGISTRY 是空值，会默认使用 Docker Hub，这里保持原样即可
+          DOCKER_REGISTRY: ""
+          # 如果不想构建时拉取基础镜像，可以设置
+          BUILDKIT_PROGRESS: plain
+      # 4. 在导出步骤中添加
+      - name: 拉取并导出中间件镜像
+        run: |
+          # 拉取中间件镜像
+          docker pull mysql:8.0
+          docker pull redis:7-alpine
+          docker pull pgvector/pgvector:pg16
+      
+
+      # 5. 查看构建好的镜像列表（调试用）
+      - name: 查看镜像列表
+        run: docker images
+
+      # 6. 将构建的镜像导出为 tar 文件
+      - name: 导出镜像为 tar 包
+        run: |
+          # 创建输出目录
+          mkdir -p ./image_artifacts
+          
+          # 定义需要导出的镜像列表（根据你的 compose 文件中的服务名）
+          # 实际镜像名是: 服务名:latest（如果没有指定 image 字段）
+          # 如果服务没有指定 image，compose 会使用 <项目名>_<服务名> 的格式
+          # 但我们用 docker compose build 构建后，可以用服务名:latest 引用
+          
+          # 导出所有构建的服务镜像
+          docker save -o ./image_artifacts/apboa-console.tar apboa-console:latest
+          docker save -o ./image_artifacts/apboa-runtime.tar apboa-runtime:latest
+          docker save -o ./image_artifacts/apboa-proxy.tar apboa-proxy:latest
+          docker save -o ./image_artifacts/apboa-websocket.tar apboa-websocket:latest
+          docker save -o ./image_artifacts/apboa-frontend.tar apboa-frontend:latest
+          
+          # 可选：也导出中间件镜像（方便离线环境）
+          docker save -o ./image_artifacts/mysql8.tar mysql:8.0
+          docker save -o ./image_artifacts/redis7.tar redis:7-alpine
+          docker save -o ./image_artifacts/pgvector16.tar pgvector/pgvector:pg16
+          
+          # 打包成一个压缩文件
+          tar -czf apboa-images.tar.gz -C ./image_artifacts .
+          
+          # 查看文件大小
+          ls -lh apboa-images.tar.gz
+
+      # 7. 上传到 GitHub Actions Artifacts
+      - name: 上传镜像压缩包
+        uses: actions/upload-artifact@v4
+        with:
+          name: apboa-images
+          path: apboa-images.tar.gz
+          retention-days: 7   # 保留 7 天，可自行调整
