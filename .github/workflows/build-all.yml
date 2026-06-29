@@ -1,0 +1,146 @@
+name: next-build
+
+on:
+  push:
+    branches: [ "develop" ]  # 触发分支
+  pull_request:
+    branches: [ "develop" ]
+  workflow_dispatch:                 # 支持手动触发
+
+jobs:
+  build-images:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1. 登录到阿里云 ACR
+      - name: Login to Aliyun ACR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ secrets.ALIYUN_REGISTRY }}
+          username: ${{ secrets.ALIYUN_USERNAME }}
+          password: ${{ secrets.ALIYUN_PASSWORD }}
+
+      # 2. 迁出代码
+      - name: 迁出代码
+        uses: actions/checkout@v4
+
+      # 3. 设置 Docker Buildx（增强构建能力）
+      - name: 设置 Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # 4. 构建所有镜像（使用 docker compose）
+      - name: 构建所有服务镜像
+        run: |
+          # 使用 -f 指定 compose 文件
+          # 构建所有 build 中定义的服务
+          docker compose -f docker/docker-compose-simple.yml build
+        env:
+          # 如果 DOCKER_REGISTRY 是空值，会默认使用 Docker Hub，这里保持原样即可
+          DOCKER_REGISTRY: ""
+          # 如果不想构建时拉取基础镜像，可以设置
+          BUILDKIT_PROGRESS: plain
+
+      # 5. 查看构建好的镜像列表（调试用）
+      - name: 查看镜像列表
+        run: docker images
+
+      # 6. 将构建的镜像导出为 tar 文件
+      - name: 导出镜像为 tar 包
+        run: |
+          # ACR 命名空间（在 ACR 控制台创建）
+          NAMESPACE=""
+          
+          # 只处理包含 "apboa" 的镜像（不区分大小写）
+          FILTER_PATTERN="lih_hub"
+          
+          # 目标 Registry
+          TARGET_REGISTRY="${{ secrets.ALIYUN_REGISTRY }}"
+          
+          # ============================================================
+          # 开始查找和推送
+          # ============================================================
+          echo "========================================="
+          echo "查找名称包含 '$FILTER_PATTERN' 的镜像"
+          echo "目标 Registry: $TARGET_REGISTRY"
+          echo "命名空间: $NAMESPACE"
+          echo "========================================="
+          
+          # 获取所有包含 apboa 的镜像（Repository:Tag）
+          # 格式: repository:tag
+          IMAGES=$(docker images --format "{{.Repository}}:{{.Tag}}" | grep -i "$FILTER_PATTERN" | grep -v "<none>" || true)
+          
+          if [ -z "$IMAGES" ]; then
+            echo "❌ 未找到名称包含 '$FILTER_PATTERN' 的镜像"
+            exit 1
+          fi
+          
+          echo "找到以下镜像："
+          echo "$IMAGES"
+          echo ""
+          echo "========================================="
+          
+          SUCCESS=0
+          FAIL=0
+          FAILED_LIST=""
+          
+          for SOURCE_IMAGE in $IMAGES; do
+            echo ""
+            echo "-----------------------------------------"
+            echo "处理: $SOURCE_IMAGE"
+            echo "-----------------------------------------"
+          
+            # 提取镜像名和标签（去掉 Registry 前缀）
+            # 例如: docker-apboa-console:latest → docker-apboa-console:latest
+            # 例如: registry.cn-hangzhou.aliyuncs.com/xxx/apboa-console:latest → apboa-console:latest
+            # 例如: crpi-xxx/xxx/apboa-console:latest → apboa-console:latest
+          
+            # 去掉 registry 前缀（如果有）
+            # 取最后一个 '/' 之后的部分
+            IMAGE_NAME_WITH_TAG=$(echo "$SOURCE_IMAGE" | sed 's|.*/||')
+          
+            # 如果去掉前缀后仍然是空，使用原始值
+            if [ -z "$IMAGE_NAME_WITH_TAG" ]; then
+              IMAGE_NAME_WITH_TAG="$SOURCE_IMAGE"
+            fi
+          
+            # 构建目标镜像地址
+            TARGET_IMAGE="$TARGET_REGISTRY/$NAMESPACE/$IMAGE_NAME_WITH_TAG"
+          
+            echo "  源镜像:   $SOURCE_IMAGE"
+            echo "  目标镜像: $TARGET_IMAGE"
+          
+            # 打标签
+            docker tag "$SOURCE_IMAGE" "$TARGET_IMAGE"
+          
+            # 推送
+            if docker push "$TARGET_IMAGE"; then
+              echo "  ✅ 推送成功"
+              SUCCESS=$((SUCCESS + 1))
+            else
+              echo "  ❌ 推送失败"
+              FAIL=$((FAIL + 1))
+              FAILED_LIST="$FAILED_LIST\n    $SOURCE_IMAGE"
+            fi
+          done
+          
+          # ============================================================
+          # 汇总输出
+          # ============================================================
+          echo ""
+          echo "========================================="
+          echo "推送完成！"
+          echo "========================================="
+          echo "总计: $((SUCCESS + FAIL)) 个镜像"
+          echo "成功: $SUCCESS"
+          echo "失败: $FAIL"
+          
+          if [ $FAIL -gt 0 ]; then
+            echo ""
+            echo "失败的镜像："
+            echo -e "$FAILED_LIST"
+            exit 1
+          fi
+          
+          echo ""
+          echo "🎉 所有镜像已成功推送到 ACR！"
+          echo "目标地址: $TARGET_REGISTRY/$NAMESPACE/"
