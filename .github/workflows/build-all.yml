@@ -1,4 +1,4 @@
-name: next-build
+name: build-all-sync
 
 on:
   push:
@@ -48,10 +48,10 @@ jobs:
       - name: 导出镜像为 tar 包
         run: |
           # ACR 命名空间（在 ACR 控制台创建）
-          NAMESPACE=""
+          NAMESPACE="lih_hub"
           
           # 只处理包含 "apboa" 的镜像（不区分大小写）
-          FILTER_PATTERN="lih_hub"
+          FILTER_PATTERN="apboa"
           
           # 目标 Registry
           TARGET_REGISTRY="${{ secrets.ALIYUN_REGISTRY }}"
